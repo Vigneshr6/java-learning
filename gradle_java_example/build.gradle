@@ -1,0 +1,102 @@
+apply plugin: 'java'
+
+
+dependencies {
+	compile files('lib/HelloName.jar')
+	runtime files('lib/HelloName.jar')
+}
+
+jar {
+   manifest {
+      attributes 'Main-Class': 'com.bank.App',
+      'Class-Path': configurations.runtime.files.collect { it.name }.join(' ')
+   }
+   doLast{
+   	println 'regular jar built successfully'
+   }
+}
+
+task fatJar(type : Jar){
+	doFirst{
+		println 'start fatJar'
+	}
+	baseName = project.name+'-fat'
+	from configurations.compile.collect{
+		if (it.isDirectory()) {
+			it
+		}
+		else {
+			zipTree(it)
+		}
+	}
+	with jar
+	doLast{
+		println 'done fatJar'
+	}
+}
+
+task printDependency {
+	configurations.compile.collect {
+		println it
+		FileTree zipFiles=zipTree(it);
+		zipFiles.each{
+			println '\t:  '+it
+		}
+	}
+}
+
+task copyVendor(type : Copy){
+	doFirst{
+		println 'start to copy dependency jars'
+	}
+	from('lib'){
+		include configurations.runtime.files.collect { it.name }.join(',')
+		destinationDir(file('build/libs'))
+	}
+	doLast{
+		println 'dependency jars copied to build/libs'
+	}
+}
+
+task makeZipOne(type : Zip) {
+	doFirst{
+		println 'start makeZipOne'
+	}
+	doLast{
+		println 'zip file created in dest folder'
+	}
+	dependsOn copyVendor,fatJar
+
+	from('build/libs'){
+		include '*.jar'
+		exclude '*-fat.jar'
+		into 'lib'
+	}
+	from ('.') {
+		include 'run.*'
+		into ''
+	}
+	archiveName 'regularJar.zip'
+	destinationDir(file('dist'))
+}
+
+task makeZipTwo(type : Zip) {
+	doFirst{
+		println 'start makeZipTwo'
+	}
+	doLast{
+		println 'zip file created in dest folder'
+	}
+	dependsOn makeZipOne
+
+	from('build/libs'){
+		include '*-fat.jar'
+		into ''
+	}
+	archiveName 'fatJar.zip'
+	destinationDir(file('dist'))
+}
+
+artifacts {
+   archives makeZipTwo
+}
